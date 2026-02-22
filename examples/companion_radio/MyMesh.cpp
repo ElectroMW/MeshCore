@@ -914,10 +914,17 @@ bool MyMesh::isValidClientRepeatFreq(uint32_t f) const {
   return false;
 }
 
+#ifdef WIFI_SSID
+void MyMesh::startInterface(SerialWifiInterface &serial) {
+  _serial = &serial;
+  serial.enable();
+}
+#else
 void MyMesh::startInterface(BaseSerialInterface &serial) {
   _serial = &serial;
   serial.enable();
 }
+#endif
 
 void MyMesh::handleCmdFrame(size_t len) {
   if (cmd_frame[0] == CMD_DEVICE_QEURY && len >= 2) { // sent when app establishes connection
@@ -1976,6 +1983,27 @@ void MyMesh::checkCLIRescueCmd() {
 }
 
 void MyMesh::checkSerialInterface() {
+  #ifdef WIFI_SSID
+    if ((WiFi.status() != wl_status_t::WL_CONNECTED) && millisHasNowPassed(wifi_check_reinit)) {
+      MESH_DEBUG_PRINTLN("Wifi connection lost");
+      wifi_check_reinit = futureMillis(WIFI_CHECK_REINIT_TIMEOUT);
+
+      if (WiFi.reconnect()) {
+        if (WiFi.waitForConnectResult(1000) == wl_status_t::WL_CONNECTED) {
+          MESH_DEBUG_PRINTLN("Reconnect attempt successful");
+          if (!_serial->isConnected()) {
+            MESH_DEBUG_PRINTLN("Serial not connected - restart");
+            _serial->begin(TCP_PORT);
+          }
+        } else {
+          MESH_DEBUG_PRINTLN("Reconnect attempt failed: code %i", WiFi.status());
+        }
+      } else {
+        MESH_DEBUG_PRINTLN("Reconnect attempt failed");
+      }
+    }
+  #endif
+
   size_t len = _serial->checkRecvFrame(cmd_frame);
   if (len > 0) {
     handleCmdFrame(len);

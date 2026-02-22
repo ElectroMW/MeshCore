@@ -28,7 +28,13 @@
 
 #include <RTClib.h>
 #include <helpers/ArduinoHelpers.h>
-#include <helpers/BaseSerialInterface.h>
+
+#ifdef WIFI_SSID
+  #include <helpers/esp32/SerialWifiInterface.h>
+#else
+  #include <helpers/BaseSerialInterface.h>
+#endif
+
 #include <helpers/IdentityStore.h>
 #include <helpers/SimpleMeshTables.h>
 #include <helpers/StaticPoolPacketManager.h>
@@ -89,7 +95,12 @@ public:
   MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMeshTables &tables, DataStore& store, AbstractUITask* ui=NULL);
 
   void begin(bool has_display);
-  void startInterface(BaseSerialInterface &serial);
+
+  #ifdef WIFI_SSID
+    void startInterface(SerialWifiInterface &serial);
+  #else
+    void startInterface(BaseSerialInterface &serial);
+  #endif
 
   const char *getNodeName();
   NodePrefs *getNodePrefs();
@@ -191,7 +202,6 @@ private:
   uint32_t pending_status;
   uint32_t pending_telemetry, pending_discovery;   // pending _TELEMETRY_REQ
   uint32_t pending_req;   // pending _BINARY_REQ
-  BaseSerialInterface *_serial;
   AbstractUITask* _ui;
 
   ContactsIterator _iter;
@@ -205,6 +215,19 @@ private:
   uint8_t *sign_data;
   uint32_t sign_data_len;
   unsigned long dirty_contacts_expiry;
+
+  #ifdef WIFI_SSID
+    SerialWifiInterface *_serial;
+    #ifndef WIFI_CHECK_REINIT_TIMEOUT
+      #define WIFI_CHECK_REINIT_TIMEOUT 60000
+    #endif
+    #ifndef TCP_PORT
+      #define TCP_PORT 5000
+    #endif
+    unsigned long wifi_check_reinit = WIFI_CHECK_REINIT_TIMEOUT;
+  #else
+    BaseSerialInterface *_serial;
+  #endif
 
   TransportKey send_scope;
 
